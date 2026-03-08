@@ -1,37 +1,29 @@
-import numpy as np
+from tensor import Tensor
 
 class Linear:
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: Tensor) -> Tensor:
         return x
-    
-    def derivate(self, x: np.ndarray) -> np.ndarray:
-        return np.ones_like(x)
-    
+
+
 class ReLU:
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return np.maximum(0,x)
-    
-    def derivate(self, x: np.ndarray) -> np.ndarray:
-        return np.where(x > 0, 1.0, 0.0)
-    
+    def __call__(self, x: Tensor) -> Tensor:
+        return x.maximum(0)
+
+
 class Sigmoid:
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return 1 / (1 + np.exp(-x))
-    
-    def derivate(self, x:np.ndarray) -> np.ndarray:
-        sigmoid = self(x)
-        return sigmoid * (1 - sigmoid)
+    def __call__(self, x: Tensor) -> Tensor:
+        return Tensor(1.0, requires_grad=False) / (Tensor(1.0, requires_grad=False) + (-x).exp())
+
 
 class Tanh:
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return np.tanh(x)
-    
-    def derivate(self, x:np.ndarray) -> np.ndarray:
-        t = np.tanh(x)
-        return 1 - t**2
-    
+    def __call__(self, x: Tensor) -> Tensor:
+        e_pos = x.exp()
+        e_neg = (-x).exp()
+        return (e_pos - e_neg) / (e_pos + e_neg)
+
+
 class Softmax:
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        x_shifted = x - np.max(x, axis=-1, keepdims=True)
-        exp_x = np.exp(x_shifted)
-        return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+    def __call__(self, x: Tensor) -> Tensor:
+        x_shifted = x - Tensor(x.data.max(axis=-1, keepdims=True), requires_grad=False)
+        exp_x = x_shifted.exp()
+        return exp_x / exp_x.sum(axis=-1, keepdims=True)
