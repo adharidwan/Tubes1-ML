@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+
 from tensor import Tensor
 from layer import Linear
 from activation import Linear as LinearAct, ReLU, Sigmoid, Tanh, Softmax
@@ -20,7 +22,7 @@ LOSSES = {
 
 class FFNN:
 
-    def __init__(self, layer_sizes: list, activations: list, loss: str = None, init: str = None, seed: int = None, **init_kwargs):
+    def __init__(self, layer_sizes: list, activations: list, loss: str = None, init: str = None, seed: int = None, regularization: str = None, lambda_reg: float = 0.01, **init_kwargs):
 
         assert len(activations) == len(layer_sizes) - 1, \
             "Atleast one activation per layer transition mpruy."
@@ -36,6 +38,9 @@ class FFNN:
         self.activations = [ACTIVATIONS[a]() for a in activations]
 
         self.loss_fn = LOSSES[loss]()
+
+        self.regularization = regularization
+        self.lambda_reg = lambda_reg
 
         self.parameters = []
         for layer in self.layers:
@@ -59,3 +64,27 @@ class FFNN:
         lines.append(f"  loss={self.loss_fn.__class__.__name__}")
         lines.append(")")
         return "\n".join(lines)
+
+    def plot_weight_distribution(layers: list[int]):
+        pass
+
+    def plot_grad_distribution(layers: list[int]):
+        pass
+
+    def save(path):
+        pass
+
+    def load(path):
+        pass
+
+    def regularization_loss(self):
+        if self.regularization is None:
+            return Tensor(0.0, requires_grad=False)
+        reg = None
+        for layer in self.layers:
+            if self.regularization == "l1":
+                term = layer.W.abs().sum()
+            else: # l2
+                term = (layer.W ** 2).sum()
+            reg = term if reg is None else reg + term
+        return reg * self.lambda_reg
