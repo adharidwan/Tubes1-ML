@@ -41,18 +41,3 @@ class BackwardRules:
             return np.ones_like(z)
 
         raise ValueError(f"Unknown activation for backward rule: '{activation_name}'")
-
-    @staticmethod
-    def dC_dW(a_prev: np.ndarray, dC_dz: np.ndarray) -> np.ndarray:
-        # For z = a_prev @ W + b
-        return a_prev.T @ dC_dz
-
-    @staticmethod
-    def dC_db(dC_dz: np.ndarray) -> np.ndarray:
-        # Sum over batch axis
-        return dC_dz.sum(axis=0)
-
-    @staticmethod
-    def dC_da_prev(W: np.ndarray, dC_dz: np.ndarray) -> np.ndarray:
-        # Propagate gradient to previous activation
-        return dC_dz @ W.T

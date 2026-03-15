@@ -224,15 +224,7 @@ class FFNN:
 
         for l in reversed(range(len(self.layers))):
             dC_dz = self._compute_dC_dz(layer_idx=l, dC_da=dC_da, y_pred=y_pred)
-            dC_dW = self._compute_dC_dW(layer_idx=l, dC_dz=dC_dz)
-            dC_db = self._compute_dC_db(dC_dz=dC_dz)
-            dC_da_prev = self._compute_dC_da_prev(layer_idx=l, dC_dz=dC_dz)
-            dC_da = self._backward_one_layer(
-                layer_idx=l,
-                dC_dW=dC_dW,
-                dC_db=dC_db,
-                dC_da_prev=dC_da_prev,
-            )
+            dC_da = self._backward_one_layer(layer_idx=l, dC_dz=dC_dz)
 
     def _compute_dC_dz(self, layer_idx: int, dC_da: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
         z = self._cache["pre_acts"][layer_idx]
@@ -241,19 +233,9 @@ class FFNN:
         )
         return dC_da * da_dz
     
-    def _compute_dC_dW(self, layer_idx: int, dC_dz: np.ndarray) -> np.ndarray:
+    def _backward_one_layer(self, layer_idx: int, dC_dz: np.ndarray) -> np.ndarray:
         a_in = self._cache["inputs"][layer_idx]
-        return BackwardRules.dC_dW(a_in, dC_dz)
-    
-    def _compute_dC_db(self, dC_dz):
-        return BackwardRules.dC_db(dC_dz)
-    
-    def _compute_dC_da_prev(self, layer_idx: int, dC_dz: np.ndarray) -> np.ndarray:
-        W = self.layers[layer_idx].W.data
-        return BackwardRules.dC_da_prev(W, dC_dz)
-
-    def _backward_one_layer(self, layer_idx: int, dC_dW: np.ndarray, dC_db: np.ndarray, dC_da_prev: np.ndarray) -> np.ndarray:
-        return self.layers[layer_idx].backward(dC_dW, dC_db, dC_da_prev)
+        return self.layers[layer_idx].backward(a_in, dC_dz)
 
     def _add_regularization_grads(self) -> None:
         if self.regularization is None:

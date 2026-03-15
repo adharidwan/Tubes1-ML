@@ -40,11 +40,31 @@ class Linear:
     def forward(self, x: Tensor) -> Tensor:
         return x @ self.W + self.b
 
-    # bang saya bingung modularnya gantengnya gimana bang
-    def backward(self, dC_dW: np.ndarray, dC_db: np.ndarray, dC_da_prev: np.ndarray) -> np.ndarray:
+    def backward(self, a_prev: np.ndarray, dC_dz: np.ndarray) -> np.ndarray:
+        dC_dW = self.dC_dW(a_prev, dC_dz)
+        dC_db = self.dC_db(dC_dz)
+        dC_da_prev = self.dC_da_prev(dC_dz)
+
         self.W.grad += dC_dW
         self.b.grad += dC_db
         return dC_da_prev
+
+    # z = a_prev * w + b
+
+    # dz/dW = a_prev
+    # dC/dW = dz/dW * dC/dz
+    def dC_dW(self, a_prev: np.ndarray, dC_dz: np.ndarray) -> np.ndarray:
+        return a_prev.T @ dC_dz
+
+    # dz/db = 1
+    # dC/db = dz/db * dC/dz
+    def dC_db(self, dC_dz: np.ndarray) -> np.ndarray:
+        return dC_dz.sum(axis=0)
+
+    # dz/da_prev = w
+    # dC/da_prev = dz/da_prev * dC/dz
+    def dC_da_prev(self, dC_dz: np.ndarray) -> np.ndarray:
+        return dC_dz @ self.W.data.T
 
     def parameters(self):
         return [self.W, self.b]
