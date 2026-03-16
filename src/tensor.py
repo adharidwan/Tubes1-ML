@@ -150,6 +150,16 @@ class Tensor:
         out._backward = _backward
         return out
 
+    def abs(self):
+        out = Tensor(np.abs(self.data), _prev=(self,), _op="abs")
+
+        def _backward():
+            if self.requires_grad:
+                self.grad += out.grad * np.sign(self.data)
+
+        out._backward = _backward
+        return out
+
     def maximum(self, val):
         out = Tensor(np.maximum(self.data, val), _prev=(self,), _op="maximum")
 
