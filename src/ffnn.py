@@ -247,7 +247,11 @@ class FFNN:
             else:  # l2
                 layer.W.grad += self.lambda_reg * 2.0 * layer.W.data
 
-    def fit(self, X, y, batch_size=32, lr=0.01, epochs=100, verbose=True):
+    def _compute_val_loss(self, X_val: np.ndarray, y_val: np.ndarray) -> float:
+        y_pred = self.forward(X_val)
+        return self._compute_total_loss(y_val, y_pred).item()
+
+    def fit(self, X, y, batch_size=32, lr=0.01, epochs=100, verbose=1, validation_data=None):
         X = self._prepare_inputs(X)
         y = self._prepare_targets(y)
 
@@ -260,10 +264,16 @@ class FFNN:
         if epochs <= 0:
             raise ValueError("epochs must be positive.")
 
-        history = {"train_loss": []}
+        X_val, y_val = None, None
+        if validation_data is not None:
+            X_val = self._prepare_inputs(validation_data[0])
+            y_val = self._prepare_targets(validation_data[1])
+
+        history = {"train_loss": [], "val_loss": []}
 
         n_samples = X.shape[0]
         effective_batch_size = min(batch_size, n_samples)
+        n_batches = int(np.ceil(n_samples / effective_batch_size))
 
         for epoch in range(epochs):
             indices = self.rng.permutation(n_samples)
@@ -271,7 +281,7 @@ class FFNN:
             y_shuffled = y[indices]
             batch_losses = []
 
-            for start in range(0, n_samples, effective_batch_size):
+            for batch_idx, start in enumerate(range(0, n_samples, effective_batch_size)):
                 end = start + effective_batch_size
                 X_batch = X_shuffled[start:end]
                 y_batch = y_shuffled[start:end]
@@ -284,13 +294,43 @@ class FFNN:
                 self._step(lr)
                 batch_losses.append(loss.item())
 
+                if verbose:
+                    self._print_progress(
+                        epoch, epochs, batch_idx + 1, n_batches,
+                        train_loss=float(np.mean(batch_losses)),
+                        val_loss=None,
+                        done=False,
+                    )
+
             epoch_loss = float(np.mean(batch_losses))
             history["train_loss"].append(epoch_loss)
 
+            val_loss = None
+            if X_val is not None:
+                val_loss = float(self._compute_val_loss(X_val, y_val))
+            history["val_loss"].append(val_loss)
+
             if verbose:
-                print(f"Epoch {epoch + 1}/{epochs} - train_loss: {epoch_loss:.6f}")
+                self._print_progress(
+                    epoch, epochs, n_batches, n_batches,
+                    train_loss=epoch_loss,
+                    val_loss=val_loss,
+                    done=True,
+                )
 
         return history
+
+    @staticmethod
+    def _print_progress(epoch, epochs, batch, n_batches, train_loss, val_loss, done):
+        bar_width = 30
+        filled = int(bar_width * batch / n_batches)
+        bar = "=" * filled + (">" if filled < bar_width else "") + "." * (bar_width - filled - (1 if filled < bar_width else 0))
+        suffix = f"train_loss: {train_loss:.6f}"
+        if val_loss is not None:
+            suffix += f" - val_loss: {val_loss:.6f}"
+        line = f"\rEpoch {epoch + 1}/{epochs} [{bar}] {batch}/{n_batches} - {suffix}"
+        end = "\n" if done else ""
+        print(line, end=end, flush=True)
 
     def predict(self, X, return_proba=False):
         X = self._prepare_inputs(X)
