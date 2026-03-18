@@ -1,0 +1,16 @@
+\section{Deskripsi Persoalan}
+Tugas besar ini mengharuskan kami untuk mengimplementasikan \textit{Feedforward Neural Network} (FFNN) dari nol (\textit{from scratch}) menggunakan bahasa Python. Implementasi hanya diperbolehkan menggunakan library matematika seperti NumPy serta tidak diperkenankan menggunakan library deep-learning seperti PyTorch atau TensorFlow.
+
+
+FFNN merupakan jenis jaringan syaraf tiruan di mana informasi hanya mengalir dari lapisan input ke lapisan output tanpa siklus/umpan balik. Model menerima vektor fitur sebagai input, memprosesnya melalui satu atau lebih lapisan tersembunyi (\textit{hidden layer}), dan menghasilkan prediksi pada lapisan
+output.
+
+Secara matematis, untuk satu lapisan ke lapisan berikutnya berlaku:
+\begin{equation}
+    \mathbf{z}^{(l)} = \mathbf{a}^{(l-1)} \mathbf{W}^{(l)} + \mathbf{b}^{(l)}
+    \qquad
+    \mathbf{a}^{(l)} = f^{(l)}\!\left(\mathbf{z}^{(l)}\right)
+\end{equation}
+di mana $\mathbf{W}^{(l)}$ adalah matriks bobot, $\mathbf{b}^{(l)}$ adalah vektor bias, dan $f^{(l)}$ adalah fungsi aktivasi pada lapisan ke-$l$.
+
+Dataset yang digunakan untuk pengujian adalah \textit{Global Student Placement \& Salary Dataset}, dengan target prediksi berupa \texttt{placement\_status} (status penempatan kerja). Makanya, persoalan yang di-\textit{handle} di sini adalah klasifikasi.

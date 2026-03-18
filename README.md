@@ -59,9 +59,9 @@ pip install -r requirements.txt
 
 | Nama | NIM | Tugas |
 |------|-----|-------|
-| Muhammad Izzat Jundy | 13523092 | ... |
-| Zulfaqqar Nayaka Athadiansyah | 13523094 | ... |
-| Muhammad Adha Ridwan | 13523098 | ... |
+| Muhammad Izzat Jundy | 13523092 | implementasi loss (Cross Entropy, MSE), backpropagation (chain rule), turunan fungsi aktivasi, optimizer gradient descent, dan batch processing. |
+| Zulfaqqar Nayaka Athadiansyah | 13523094 | preprocessing data (missing values, one-hot encoding, feature scaling), K-Fold cross validation, metrik evaluasi (accuracy, precision, recall, F1-score), eksperimen pembanding dengan Scikit-Learn MLPClassifier, serta laporan dan visualisasi. |
+| Muhammad Adha Ridwan | 13523098 | desain kelas FFNN dinamis, forward propagation, implementasi fungsi aktivasi forward (Linear, ReLU, Sigmoid, tanh, Softmax), inisialisasi bobot/bias (Xavier/He), Automatic Differentiation (Autograd). |
 
 ---
 

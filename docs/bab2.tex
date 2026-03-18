@@ -1,0 +1,328 @@
+\section{Analisis dan Pembahasan}
+\subsection{Implementasi}
+Implementasi FFNN ini dirancang secara modular untuk memisahkan logika struktur data, \textit{layer} dari \textit{neural network}, dan fungsi-fungsi pendukung lainnya. Arsitektur kode terdiri atas beberapa modul utama, mulai dari mesin \textit{autograd} pada \code{tensor.py} hingga kelas pengelola model pada \code{ffnn.py}.
+
+\subsubsection{Kelas \code{Tensor} (\code{tensor.py})}\code{Tensor} merupakan struktur data inti yang membungkus array NumPy untuk menyediakan kemampuan \textit{automatic differentiation}. Di dalam implementasi kami, \code{Tensor} menyimpan nilai numerik utama pada atribut \code{data}, sementara akumulasi gradien hasil turunan disimpan pada atribut \code{grad}. Untuk membangun graf komputasi, setiap objek \code{Tensor} mencatat referensi ke "orang tua"-nya melalui atribut \code{\_prev} dan menyimpan logika turunan spesifik operasi tersebut dalam fungsi anonim \code{\_backward}.Metode yang paling krusial dalam kelas ini adalah \code{backward()}, yang melakukan \textit{topological sort} pada graf komputasi untuk memastikan gradien dihitung dalam urutan yang benar dari belakang ke depan. Selain itu, kelas ini meng-overload operator aritmatika standar Python sehingga operasi seperti penjumlahan atau perkalian matriks secara otomatis mendaftarkan node baru dalam graf komputasi.
+
+\begin{table}[H]
+\centering
+\caption{Atribut dan Metode Kelas \code{Tensor}}
+\begin{tabular}{llp{7cm}}
+\hline
+\textbf{Nama} & \textbf{Tipe} & \textbf{Deskripsi} \\
+\hline
+\code{data} & \code{np.ndarray} & data numerik utama (\code{float64}) \\
+\code{grad} & \code{np.ndarray} & akumulasi gradien turunan \\
+\code{requires\_grad} & \code{bool} & penanda apakah gradien perlu dihitung \\
+\code{backward()} & \code{method} & memulai proses \textit{backpropagation} \\
+\code{zero\_grad()} & \code{method} & me-\textit{reset} gradien menjadi nol. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Layer (\code{layer.py})}
+Lapisan \code{Linear} merepresentasikan satu lapisan \textit{fully connected} yang melakukan transformasi linear terhadap data melalui operasi $\mathbf{z} = \mathbf{a}_{\text{prev}} \mathbf{W} + \mathbf{b}$. Atribut utama kelas ini adalah \code{W} dan \code{b} yang disimpan dalam objek \code{Tensor} untuk memungkinkan pelacakan gradien otomatis. Kelas ini mendukung berbagai metode inisialisasi bobot seperti \textit{Zero}, \textit{Uniform}, \textit{Normal}, \textit{Xavier}, hingga \textit{He}.
+
+Metode \code{forward(x)} bertanggung jawab untuk menghitung hasil transformasi linear dari input yang diberikan. Selain itu, tersedia metode \code{backward()} manual yang secara eksplisit menghitung gradien terhadap bobot, bias, dan input sebelumnya ($\partial C/\partial a_{\text{prev}}$).
+
+\begin{table}[H]
+\centering
+\caption{Atribut dan Metode Kelas \code{Linear}}
+\begin{tabular}{llp{7cm}}
+\hline
+\textbf{Nama} & \textbf{Tipe} & \textbf{Deskripsi} \\
+\hline
+\code{W} & \code{Tensor} & matriks bobot berukuran $(\text{in} \times \text{out})$ \\
+\code{b} & \code{Tensor} & vektor bias berukuran $(\text{out},)$ \\
+\code{forward(x)} & \code{method} & menghitung transformasi linear $x\mathbf{W} + \mathbf{b}$ \\
+\code{backward()} & \code{method} & menghitung gradien analitik untuk bobot dan bias \\
+\code{parameters()} & \code{method} & mengembalikan daftar parameter \code{[W, b]} \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\subsubsection{Fungsi Aktivasi (\code{activation.py})}
+
+Setiap kelas aktivasi mengimplementasikan \code{\_\_call\_\_(x: Tensor)}.
+Karena menggunakan \code{Tensor}, backward secara otomatis ditangani oleh
+\textit{autograd}.
+
+\begin{table}[H]
+\centering
+\caption{Fungsi aktivasi dan turunannya}
+\begin{tabular}{lll}
+\toprule
+\textbf{Nama} & \textbf{Definisi} $f(z)$ & \textbf{Turunan} $f'(z)$ \\
+\midrule
+Linear   & $z$ & $1$ \\
+ReLU     & $\max(0,\, z)$ & $\mathbf{1}[z > 0]$ \\
+Sigmoid  & $\sigma(z) = \dfrac{1}{1+e^{-z}}$ & $\sigma(z)(1-\sigma(z))$ \\
+Tanh     & $\tanh(z) = \dfrac{e^z - e^{-z}}{e^z + e^{-z}}$ & $1 - \tanh^2(z)$ \\
+Softmax  & $\text{softmax}(z)_i = \dfrac{e^{z_i}}{\sum_j e^{z_j}}$ & (matriks Jacobian; dikombinasikan dengan CCE) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Di sini implementasi Softmax kami pakai \textit{numerical stability trick}
+$z' = z - \max(z)$ sebelum eksponen dihitung. Ini biar tidak terjadi \textit{overflow} saat eksponen dihitung.
+
+\subsubsection{Fungsi Loss (\code{loss.py})}
+
+\begin{table}[H]
+\centering
+\caption{Fungsi loss yang diimplementasikan}
+\begin{tabular}{ll}
+\toprule
+\textbf{Nama} & \textbf{Definisi} \\
+\midrule
+MSE &
+$\mathcal{L} = \dfrac{1}{n}\displaystyle\sum_{i=1}^n (\hat{y}_i - y_i)^2$ \\[8pt]
+Binary Cross-Entropy &
+$\mathcal{L} = -\dfrac{1}{n}\displaystyle\sum_{i=1}^n \bigl[y_i \ln\hat{y}_i + (1-y_i)\ln(1-\hat{y}_i)\bigr]$ \\[8pt]
+Categorical Cross-Entropy &
+$\mathcal{L} = -\dfrac{1}{n}\displaystyle\sum_{i=1}^n\sum_{j=1}^C y_{ij}\ln\hat{y}_{ij}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Kami pakai \code{Tensor.clip} untuk menghindari $\ln(0)$.
+
+\subsubsection{Kelas \code{BackwardRules} (\code{backward.py})}
+Kelas \code{BackwardRules} bertindak sebagai \textit{library} turunan analitik yang dipakai ketika model dijalankan dalam mode \code{"manual"}. Di sini \code{dC\_da()} menghitung turunan \textit{loss} terhadap output lapisan terakhir, sementara \code{da\_dz()} menghitung turunan fungsi aktivasi terhadap pre-aktivasi. 
+
+\begin{table}[H]
+\centering
+\caption{Metode pada Kelas \code{BackwardRules}}
+\begin{tabular}{llp{7cm}}
+\hline
+\textbf{Nama} & \textbf{Tipe} & \textbf{Deskripsi} \\
+\hline
+\code{dC\_da()} & \code{static} & turunan fungsi \textit{loss} terhadap prediksi ($\partial \mathcal{L}/\partial \hat{y}$) \\
+\code{da\_dz()} & \code{static} & turunan fungsi aktivasi terhadap pre-aktivasi ($\partial a/\partial z$) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Kelas \code{FFNN} (\code{ffnn.py})}
+\code{FFNN} merupakan kelas utama yang menggabungkan seluruh komponen lapisan, aktivasi, dan fungsi \textit{loss} menjadi satu model utuh. Kita dapat menentukan arsitektur jaringan melalui parameter \code{layer\_sizes}, metode inisialisasi, hingga teknik regularisasi L1 atau L2. Kelas ini memiliki mekanisme \code{\_cache} internal untuk menyimpan data antara selama \textit{forward pass} yang dibutuhkan dalam proses \textit{backpropagation} manual.
+
+Metode \code{fit()} mengelola siklus \textit{trainig} menggunakan \textit{mini-batch Stochastic Gradient Descent} (SGD).
+
+\begin{table}[H]
+\centering
+\caption{Atribut dan Metode Kelas \code{FFNN}}
+\begin{tabular}{llp{7cm}}
+\hline
+\textbf{Nama} & \textbf{Tipe} & \textbf{Deskripsi} \\
+\hline
+\code{layers} & \code{list} & daftar objek \code{Linear} penyusun jaringan \\
+\code{\_cache} & \code{dict} & penyimpanan sementara input dan pre-aktivasi \\
+\code{forward(x)} & \code{method} & melakukan aliran data maju dari input ke output \\
+\code{fit()} & \code{method} & menjalankan loop pelatihan dengan mini-batch SGD \\
+\code{predict()} & \code{method} & melakukan inferensi kelas atau probabilitas \\
+\code{save/load()} & \code{method} & melakukan serialisasi parameter model ke file \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Penjelasan Forward Propagation}
+% ----------------------------------------------------------
+
+Forward propagation mengalirkan data dari lapisan input ke output secara
+berurutan. Method \code{forward(x)} pada \code{FFNN} melakukan langkah berikut:
+
+\begin{enumerate}
+    \item Input $\mathbf{X} \in \mathbb{R}^{n \times d}$ (batch $n$ sampel,
+          $d$ fitur) dibungkus sebagai \code{Tensor}.
+    \item Untuk setiap pasangan (\code{layer}$_l$, \code{activation}$_l$):
+    \begin{enumerate}
+        \item Simpan $\mathbf{a}^{(l-1)}$ ke \code{\_cache["inputs"]}.
+        \item Hitung pre-aktivasi: $\mathbf{z}^{(l)} = \mathbf{a}^{(l-1)}\mathbf{W}^{(l)} + \mathbf{b}^{(l)}$.
+        \item Simpan $\mathbf{z}^{(l)}$ ke \code{\_cache["pre\_acts"]}.
+        \item Hitung aktivasi: $\mathbf{a}^{(l)} = f^{(l)}(\mathbf{z}^{(l)})$.
+    \end{enumerate}
+    \item Kembalikan $\mathbf{a}^{(L)}$ (output lapisan terakhir).
+\end{enumerate}
+
+Karena semua operasi dilakukan dengan \code{Tensor}, graf komputasi (DAG)
+otomatis terbangun selama forward pass dan siap digunakan oleh
+\code{backward()}.
+
+% ----------------------------------------------------------
+\subsection{Penjelasan Backward Propagation dan Weight Update}
+% ----------------------------------------------------------
+
+\subsubsection{Mode Autograd}
+
+Pada mode \code{"autograd"}, setelah loss dihitung, cukup dipanggil
+\code{loss.backward()}. Metode ini:
+
+\begin{enumerate}
+    \item Melakukan \textit{topological sort} pada DAG komputasi.
+    \item Menginisialisasi $\partial \mathcal{L}/\partial \mathcal{L} = 1$.
+    \item Memanggil \code{\_backward()} setiap node dalam urutan terbalik
+          (\textit{reverse mode}), mengakumulasi gradien ke \code{.grad}
+          tiap \code{Tensor}.
+\end{enumerate}
+
+Dengan pendekatan ini, setiap operator (penjumlahan, perkalian matriks, exp,
+dll.) bertanggung jawab mendefinisikan turunannya sendiri melalui \textit{closure}
+dalam \code{\_backward}.
+
+\subsubsection{Mode Manual (Chain Rule Eksplisit)}
+
+Pada mode \code{"manual"}, \code{\_manual\_backward} menggunakan aturan dari
+\code{BackwardRules} secara eksplisit:
+
+\begin{enumerate}
+    \item Hitung $\dfrac{\partial \mathcal{L}}{\partial \mathbf{a}^{(L)}}$
+          menggunakan \code{BackwardRules.dC\_da}.
+
+    \item Untuk $l = L, L-1, \ldots, 1$ (dari output ke input):
+    \begin{enumerate}
+        \item Hitung $\dfrac{\partial \mathcal{L}}{\partial \mathbf{z}^{(l)}} =
+              \dfrac{\partial \mathcal{L}}{\partial \mathbf{a}^{(l)}} \odot
+              \dfrac{\partial \mathbf{a}^{(l)}}{\partial \mathbf{z}^{(l)}}$
+              menggunakan \code{BackwardRules.da\_dz}.
+        \item Hitung gradien bobot:
+              $\dfrac{\partial \mathcal{L}}{\partial \mathbf{W}^{(l)}} =
+              (\mathbf{a}^{(l-1)})^{\top}\,\dfrac{\partial \mathcal{L}}{\partial
+              \mathbf{z}^{(l)}}$
+        \item Hitung gradien bias:
+              $\dfrac{\partial \mathcal{L}}{\partial \mathbf{b}^{(l)}} =
+              \sum_{\text{batch}}\dfrac{\partial \mathcal{L}}{\partial
+              \mathbf{z}^{(l)}}$
+        \item Propagasikan ke lapisan sebelumnya:
+              $\dfrac{\partial \mathcal{L}}{\partial \mathbf{a}^{(l-1)}} =
+              \dfrac{\partial \mathcal{L}}{\partial \mathbf{z}^{(l)}}
+              (\mathbf{W}^{(l)})^{\top}$
+    \end{enumerate}
+    \item Akumulasikan gradien regularisasi (L1/L2) ke \code{W.grad}.
+\end{enumerate}
+
+\subsubsection{Regularisasi}
+
+Term regularisasi ditambahkan ke loss sebelum backward:
+
+\begin{align}
+    \text{L1}: \quad &\mathcal{L}_{\text{reg}} = \lambda \sum_l \|\mathbf{W}^{(l)}\|_1
+    \qquad \Rightarrow \quad \nabla_W \mathcal{L}_{\text{reg}} = \lambda\,\text{sign}(\mathbf{W}) \\
+    \text{L2}: \quad &\mathcal{L}_{\text{reg}} = \lambda \sum_l \|\mathbf{W}^{(l)}\|_2^2
+    \qquad \Rightarrow \quad \nabla_W \mathcal{L}_{\text{reg}} = 2\lambda\,\mathbf{W}
+\end{align}
+
+\subsubsection{Weight Update (Gradient Descent)}
+
+Setelah gradien dihitung, bobot diperbarui dengan aturan:
+\begin{equation}
+    \mathbf{W}^{(l)} \leftarrow \mathbf{W}^{(l)} - \eta \, \dfrac{\partial
+    \mathcal{L}}{\partial \mathbf{W}^{(l)}}
+    \qquad
+    \mathbf{b}^{(l)} \leftarrow \mathbf{b}^{(l)} - \eta \, \dfrac{\partial
+    \mathcal{L}}{\partial \mathbf{b}^{(l)}}
+\end{equation}
+di mana $\eta$ adalah \textit{learning rate}.
+
+
+\subsection{Hasil Pengujian}
+
+Bagian ini menyajikan hasil eksperimen model FFNN yang dijalankan melalui Jupyter Notebook. Pengujian mencakup variasi arsitektur, parameter pelatihan, hingga perbandingan performa dengan pustaka standar Scikit-learn untuk memvalidasi implementasi kami.
+
+\subsubsection{Pengaruh Width dan Depth}
+
+Eksperimen terhadap lebar jaringan (\textit{width}) menunjukkan bahwa model yang lebih kompleks cenderung mengalami \textit{overfitting} pada dataset ini. Penggunaan \code{Width-16} memberikan hasil yang paling seimbang dengan akurasi tes sebesar 0.7500. Sebaliknya, pada \code{Width-256}, akurasi latih mencapai angka sangat tinggi (0.8671) namun akurasi tes turun menjadi 0.6900, yang menandakan model terlalu menghafal data latih.
+
+Sementara itu, pengujian kedalaman (\textit{depth}) mengindikasikan bahwa struktur yang lebih dangkal jauh lebih efektif. Akurasi tes tertinggi didapatkan pada \code{Depth-1} sebesar 0.7433, dan performa menurun drastis hingga 0.6153 saat kedalaman ditingkatkan menjadi \code{Depth-5}. Hal ini menunjukkan bahwa penambahan lapisan tersembunyi yang terlalu banyak justru mempersulit proses konvergensi untuk kasus ini.
+
+\begin{table}[H]
+\centering
+\caption{Ringkasan Pengaruh Variasi Arsitektur}
+\begin{tabular}{lccc}
+\hline
+\textbf{Konfigurasi} & \textbf{Train Acc} & \textbf{Val Acc} & \textbf{Test Acc} \\
+\hline
+Width-16  & 0.7601 & 0.7480 & 0.7500 \\
+Width-64  & 0.7506 & 0.7180 & 0.7480 \\
+Width-256 & 0.8671 & 0.6880 & 0.6900 \\
+\hline
+Depth-1   & 0.7591 & 0.7413 & 0.7433 \\
+Depth-3   & 0.7043 & 0.6780 & 0.6833 \\
+Depth-5   & 0.6153 & 0.6153 & 0.6153 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Pengaruh Fungsi Aktivasi}
+
+Pengujian terhadap berbagai fungsi aktivasi pada lapisan tersembunyi menunjukkan hasil yang cukup kompetitif. Menariknya, fungsi \code{sigmoid} dan \code{linear} memberikan akurasi tes yang sedikit lebih tinggi (~0.748) dibandingkan dengan \code{relu} (0.7260). Hal ini menunjukkan bahwa untuk dataset spesifik ini, transisi nilai yang lebih halus atau representasi linear yang sederhana pada lapisan awal memberikan kontribusi positif terhadap prediksi status penempatan kerja.
+
+\begin{table}[H]
+\centering
+\caption{Hasil Variasi Fungsi Aktivasi}
+\begin{tabular}{lccc}
+\hline
+\textbf{Aktivasi} & \textbf{Train Acc} & \textbf{Val Acc} & \textbf{Test Acc} \\
+\hline
+Linear  & 0.7450 & 0.7360 & 0.7473 \\
+ReLU    & 0.7359 & 0.7213 & 0.7260 \\
+Sigmoid & 0.7593 & 0.7513 & 0.7487 \\
+Tanh    & 0.7561 & 0.7333 & 0.7433 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Pengaruh Learning Rate}
+
+Eksperimen terhadap \textit{learning rate} (LR) menunjukkan pentingnya pemilihan nilai yang moderat. Nilai \code{lr=0.01} memberikan stabilitas yang baik selama proses pelatihan. Meskipun peningkatan LR ke \code{0.1} meningkatkan akurasi latih menjadi 0.7937, akurasi tes yang dihasilkan tetap sama dengan konfigurasi LR yang lebih kecil, yang menandakan bahwa peningkatan kecepatan belajar tidak selalu menghasilkan model yang lebih cerdas dalam menggeneralisasi data baru.
+
+\begin{table}[H]
+\centering
+\caption{Hasil Variasi Learning Rate}
+\begin{tabular}{lccc}
+\hline
+\textbf{Learning Rate} & \textbf{Train Acc} & \textbf{Val Acc} & \textbf{Test Acc} \\
+\hline
+$lr=0.001$ & 0.7130 & 0.6887 & 0.7187 \\
+$lr=0.01$  & 0.7359 & 0.7213 & 0.7260 \\
+$lr=0.1$   & 0.7937 & 0.7187 & 0.7260 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Pengaruh Regularisasi}
+
+Penerapan regularisasi L1 dan L2 terbukti efektif dalam meningkatkan performa model. Model yang menggunakan regularisasi L1 berhasil mencapai akurasi tes 0.7500, lebih tinggi dibandingkan model standar (\code{normal}) yang berada di angka 0.7260. Hal ini menunjukkan bahwa teknik \textit{weight decay} atau penalti pada bobot membantu model untuk mengurangi kompleksitas yang tidak perlu dan fokus pada fitur-fitur yang paling relevan bagi prediksi.
+
+\begin{table}[H]
+\centering
+\caption{Hasil Variasi Regularisasi}
+\begin{tabular}{lccc}
+\hline
+\textbf{Konfigurasi} & \textbf{Train Acc} & \textbf{Val Acc} & \textbf{Test Acc} \\
+\hline
+Normal (No Reg)   & 0.7359 & 0.7213 & 0.7260 \\
+L1 ($\lambda=1e-3$) & 0.7520 & 0.7340 & 0.7500 \\
+L2 ($\lambda=1e-3$) & 0.7543 & 0.7413 & 0.7473 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Perbandingan dengan \textit{Scikit-Learn}}
+
+Sebagai bentuk validasi akhir, model FFNN \textit{custom} kami diuji secara langsung melawan \code{MLPClassifier} dari Scikit-Learn menggunakan parameter yang setara. Hasilnya menunjukkan bahwa implementasi manual kami berhasil mengungguli Scikit-Learn dengan akurasi tes 0.7480 berbanding 0.7120. Keunggulan ini memberikan bukti kuat bahwa mesin \textit{autograd} dan algoritma propagasi balik yang kami bangun dari nol telah berjalan secara akurat dan sangat kompetitif.
+
+\begin{table}[H]
+\centering
+\caption{Perbandingan Metrik FFNN Custom vs Scikit-Learn MLP}
+\begin{tabular}{lcc}
+\hline
+\textbf{Metrik (Weighted Avg)} & \textbf{FFNN Custom} & \textbf{Scikit-Learn MLP} \\
+\hline
+Akurasi   & 0,7480 & 0,7120 \\
+Precision & 0,76 & 0,72 \\
+Recall    & 0,75 & 0,71 \\
+F1-Score  & 0,73 & 0,71 \\
+\hline
+\end{tabular}
+\end{table}

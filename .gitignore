@@ -1,0 +1,16 @@
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.bbl
+*.blg
+*.maf
+*.mtc
+*.mtc0
+svg-inkscape
+src/.ipynb_checkpoints
+data/.ipynb_checkpoints
+src/__pycache__
